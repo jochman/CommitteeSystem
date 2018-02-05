@@ -10,7 +10,9 @@ public class resident extends user_extension {
         Scanner scan = new Scanner(System.in);
 
         while (true){
-            System.out.println("Resident menu!" + "\n"
+            System.out.println("-------------------" + "\n"
+                    +"\tResident menu" + "\n"
+                    +"-------------------" + "\n"
                     + "1. Check what you've paid" + "\n"
                     + "2. send eMail to committee" + "\n"
                     + "3. Quit");
@@ -37,13 +39,19 @@ public class resident extends user_extension {
         server_connector.OutToServer().writeBytes("get_Paid_Months" + "\n");
         str = server_connector.InFromServer().readLine();
         System.out.println("You've paid for months: " + str);
+        press_enter();
     }
 
     private void sendMail() throws IOException {
         Scanner scan = new Scanner(System.in);
+
         System.out.println("Please enter your message: ");
         String str = scan.nextLine();
+
         server_connector.OutToServer().writeBytes("sendMail" + "\n");
         server_connector.OutToServer().writeBytes(str + "\n");
+
+        System.out.println("Message sent!");
+        press_enter();
     }
 }

@@ -48,7 +48,6 @@ public class main {
             }
         }
 
-        System.out.println(resident_committee);
         server_connector.OutToServer().writeBytes(resident_committee + "\n");
         bool = false;
 
@@ -73,7 +72,6 @@ public class main {
             }
         }
 
-        System.out.println(change_or_connect);
         server_connector.OutToServer().writeBytes(change_or_connect + "\n");
 
         /*creating user*/

@@ -11,6 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Calendar;
+import java.util.Vector;
 
 public class committee extends user_extension {
 
@@ -70,7 +71,7 @@ public class committee extends user_extension {
         delete_resident_data();
         try{
             PreparedStatement createBuildingStatement =
-                    sql.connect().clientPrepareStatement(
+                    sql.connect().prepareStatement(
                             "INSERT INTO resident (name, surname, username, aptnum, monthlypayment, password) " +
                                     "VALUES (?,?,?,?,?,?)");
 
@@ -83,7 +84,15 @@ public class committee extends user_extension {
                 createBuildingStatement.setString(3, "resident" + i);
                 createBuildingStatement.setString(4, String.valueOf(i));
                 createBuildingStatement.executeUpdate();
+
+                /*will initialize paidmonth table*/
+                PreparedStatement updatePaidMonth =
+                        sql.connect().prepareStatement("INSERT INTO paidmonth (aptnum) VALUES (?)");
+                updatePaidMonth.setString(1,String.valueOf(i));
+                updatePaidMonth.executeUpdate();
             }
+
+
             outToClient.writeBytes("ok" + "\n");
         } catch (SQLException e) {
             e.printStackTrace();
@@ -93,11 +102,11 @@ public class committee extends user_extension {
 
     private void delete_resident_data() throws SQLException {
         PreparedStatement statement =
-                sql.connect().clientPrepareStatement("DELETE FROM paidmonth");
+                sql.connect().prepareStatement("DELETE FROM paidmonth");
         statement.executeUpdate();
 
         statement =
-                sql.connect().clientPrepareStatement("DELETE FROM resident");
+                sql.connect().prepareStatement("DELETE FROM resident");
         statement.executeUpdate();
 
 
@@ -105,7 +114,7 @@ public class committee extends user_extension {
 
     /*payment handling*/
     private void payment_status_all() throws SQLException, IOException {
-        PreparedStatement statement = sql.connect().clientPrepareStatement("SELECT * FROM paidmonth");
+        PreparedStatement statement = sql.connect().prepareStatement("SELECT * FROM paidmonth");
         ResultSet result = statement.executeQuery();
         while (result.next()){
             StringBuilder str = new StringBuilder("Resident #" + result.getString("aptnum") + " paid for months: ");
@@ -120,24 +129,41 @@ public class committee extends user_extension {
 
     private void payment_status_resident() throws IOException, SQLException {
         String aptnum = inFromClient.readLine();
+
+        /* Checking if correct apartment number*/
+        PreparedStatement check_if_exist = sql.connect().prepareStatement("SELECT aptnum FROM resident WHERE aptnum = ?");
+        check_if_exist.setString(1, aptnum);
+        ResultSet check_result = check_if_exist.executeQuery();
+
+        if (!check_result.next()) {
+            outToClient.writeBytes("no such apartment number!" + "\n");
+            System.out.println("end!");
+            outToClient.writeBytes("end" + "\n");
+            return;
+        }
+
+        /*getting paid months*/
         PreparedStatement statement = sql.connect().prepareStatement("SELECT * FROM paidmonth WHERE aptnum = ?");
         statement.setString(1, aptnum);
-
         ResultSet result = statement.executeQuery();
-        StringBuilder answers = new StringBuilder("nosuch");
-        if(result.next()){
-            answers = new StringBuilder(" ");
-            for (int i = 2; i<=13;++i)
-                if (result.getString(i).equals("1"))
-                    answers.append(i - 1).append(" ");
-        }
-        outToClient.writeBytes(answers.toString() + "\n");
+
+        if (result.next()) {
+            StringBuilder answers = new StringBuilder("Resident #" + aptnum + " paid for months "
+                    + "\t");
+            for (int i = 2; i <= 13; ++i) {
+                if (Integer.parseInt(result.getString("m" + (i - 1))) > 0)
+                    answers.append(i - 1);
+            }
+            outToClient.writeBytes(answers.toString() + "\n");
+        } else outToClient.writeBytes("No payments detected" + "\n");
+
+        outToClient.writeBytes("end" + "\n");
     }
 
     private void display_income() throws SQLException, IOException {
         for (Integer i = 2; i < 14; i++) {
             String str = "SELECT SUM(m" + String.valueOf(i-1) + ") FROM paidmonth";
-            PreparedStatement statement = sql.connect().clientPrepareStatement(str);
+            PreparedStatement statement = sql.connect().prepareStatement(str);
             ResultSet result = statement.executeQuery();
             result.next();
             String sum = result.getString(1);
@@ -146,33 +172,36 @@ public class committee extends user_extension {
         outToClient.writeBytes("ok" + "\n");
     }
 
-    private void update_payment() throws IOException, SQLException {
-        String updateStr[] = inFromClient.readLine().split(" "); //APTNUM, MONEY, MONTH
-        String aptnum = updateStr[0];
-        String money = updateStr[1];
-        String month = 'm' + updateStr[2];
+    private void update_payment() throws IOException, SQLException, ClassNotFoundException {
+        String str[] = inFromClient.readLine().split(" "); //APTNUM, MONEY, MONTH
 
-        PreparedStatement statement = sql.connect().clientPrepareStatement(
-                "SELECT aptnum FROM resident WHERE aptnum = ?");
-        statement.setString(1, aptnum);
+        System.out.println("aptnum " + str[0] + "Money " + str[1] + "month " + str[2]);
+        PreparedStatement statement = sql.connect().prepareStatement(
+                "SELECT * FROM resident WHERE aptnum = ?");
+        statement.setString(1, str[0]);
         ResultSet result = statement.executeQuery();
+
         if (!result.next()) {
-            outToClient.writeBytes("nosuch" + "\n");
+            outToClient.writeBytes("No such apartment number!" + "\n");
+            outToClient.writeBytes("end" + "\n");
             return;
         }
-        String str = "UPDATE paidmonth SET " + month + "= ";
-        PreparedStatement updatestatement =
-                sql.connect().clientPrepareStatement(str + "? WHERE aptnum = ?");
-        updatestatement.setString(1, money);
-        updatestatement.setString(2, aptnum);
-        updatestatement.executeUpdate();
 
-        outToClient.writeBytes("ok" + "\n");
+        str[2] = 'm' + str[2];
+        String Qstr = "UPDATE paidmonth SET " + str[2] + "= ";
+        PreparedStatement updateStatement =
+                sql.connect().prepareStatement(Qstr + "? WHERE aptnum = ?");
+        updateStatement.setString(1, str[1]);
+        updateStatement.setString(2, str[0]);
+        updateStatement.executeUpdate();
+
+        outToClient.writeBytes("Payment updated!" + "\n");
+        outToClient.writeBytes("end" + "\n");
     }
 
     private void delete_payment() throws SQLException, IOException {
         String aptnum = inFromClient.readLine();
-        PreparedStatement statement = sql.connect().clientPrepareStatement("SELECT aptnum FROM resident WHERE aptnum = ?");
+        PreparedStatement statement = sql.connect().prepareStatement("SELECT aptnum FROM resident WHERE aptnum = ?");
         statement.setString(1, aptnum);
         ResultSet result = statement.executeQuery();
         if (!result.next()) {
@@ -185,7 +214,7 @@ public class committee extends user_extension {
         String str = "UPDATE paidmonth SET ";
         str += month;
         PreparedStatement updatestatement =
-                sql.connect().clientPrepareStatement(str + " = 0 WHERE aptnum = ?");
+                sql.connect().prepareStatement(str + " = 0 WHERE aptnum = ?");
         updatestatement.setString(1, aptnum);
         updatestatement.executeUpdate();
         outToClient.writeBytes("ok" + "\n");
@@ -194,7 +223,7 @@ public class committee extends user_extension {
     /* providers handling*/
     private void display_providers() throws IOException, SQLException {
         String kind_of_provider = inFromClient.readLine();
-        PreparedStatement statement = sql.connect().clientPrepareStatement("SELECT * FROM supplier WHERE type = ?");
+        PreparedStatement statement = sql.connect().prepareStatement("SELECT * FROM supplier WHERE type = ?");
         statement.setString(1, kind_of_provider);
         ResultSet result = statement.executeQuery();
 
@@ -213,7 +242,7 @@ public class committee extends user_extension {
     private void insert_provider() throws IOException, ClassNotFoundException, SQLException {
         provider prov = (provider) inObject.readObject();   //get provider object
 
-        PreparedStatement statement = sql.connect().clientPrepareStatement("SELECT 1 FROM supplier WHERE name = ? AND surname = ? AND type = ?");
+        PreparedStatement statement = sql.connect().prepareStatement("SELECT 1 FROM supplier WHERE name = ? AND surname = ? AND type = ?");
         statement.setString(1, prov.getName());
         statement.setString(2, prov.getSurname());
         statement.setString(3, prov.getType());
@@ -224,7 +253,7 @@ public class committee extends user_extension {
         }
 
         PreparedStatement updateStatement =
-                sql.connect().clientPrepareStatement(
+                sql.connect().prepareStatement(
                         "INSERT INTO supplier (type, name, surname, phone) VALUES (?,?,?,?)");
         updateStatement.setString(1, prov.getType());
         updateStatement.setString(2, prov.getName());
@@ -251,7 +280,7 @@ public class committee extends user_extension {
     }
 
     private void delete_mails() throws SQLException, IOException {
-        PreparedStatement statement = sql.connect().clientPrepareStatement("DELETE FROM mail");
+        PreparedStatement statement = sql.connect().prepareStatement("DELETE FROM mail");
         statement.executeUpdate();
         outToClient.writeBytes("ok" + "\n");
     }

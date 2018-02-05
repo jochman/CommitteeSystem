@@ -5,6 +5,7 @@ import TCPUtil.provider;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Scanner;
+import java.util.Vector;
 
 public class committee extends user_extension {
 
@@ -14,8 +15,9 @@ public class committee extends user_extension {
         checkmail(); //making new mails pop at connection
 
         while (true) {
-            System.out.println("" +
-                    "Committee menu!" + "\n"
+            System.out.println("-------------------" + "\n"
+                    +"\tCommittee menu" + "\n"
+                    +"-------------------" + "\n"
                     + "1. Show paying status of a resident" + "\n"
                     + "2. Show paying status of all residents" + "\n"
                     + "3. Create a new building" + "\n"
@@ -80,6 +82,21 @@ public class committee extends user_extension {
         press_enter();
     }
 
+    private void checkmail() throws IOException {
+        server_connector.OutToServer().writeBytes("check mail" + "\n");
+        String str = server_connector.InFromServer().readLine();
+        if (str.equals("endnewmail")){
+            System.out.println("No new mails");
+            press_enter();
+            return;}
+
+        while(!str.equals("endnewmail")){
+            System.out.println(str + "\n");
+            str = server_connector.InFromServer().readLine();
+        }
+        press_enter();
+    }
+
     private void paying_status_all() throws IOException {
         server_connector.OutToServer().writeBytes("paying status all" + "\n");
         System.out.print("All paying status: ");
@@ -92,35 +109,18 @@ public class committee extends user_extension {
         press_enter();
     }
 
-    private void checkmail() throws IOException {
-        server_connector.OutToServer().writeBytes("check mail" + "\n");
-        String str = server_connector.InFromServer().readLine();
-        if (str.equals("endnewmail")){
-            System.out.println("No new mails");
-            press_enter();
-            return;}
-
-        while(!str.equals("endnewmail")){
-            System.out.println(str + "\n");
-            str = server_connector.InFromServer().readLine();
-            press_enter();
-        }
-    }
-
     private void paying_status_resident() throws IOException {
         Scanner scan = new Scanner(System.in);
         System.out.println("Please enter the apartment number");
-        String res_num = scan.nextLine();
+        String aptNum = scan.nextLine();
         server_connector.OutToServer().writeBytes("paying status resident" + "\n");
-        server_connector.OutToServer().writeBytes(res_num + "\n");
+        server_connector.OutToServer().writeBytes(aptNum + "\n");
 
         String server_line = server_connector.InFromServer().readLine();
-        if (server_line.equals("nosuch"))
-            System.out.println("no such apartment number!");
-        else
-            System.out.println(
-                    "Resident #" + res_num + " paid for months "
-                            +"\n\t" +  server_line);
+        while (!server_line.equals("end")) {
+            System.out.println(server_line);
+            server_line = server_connector.InFromServer().readLine();
+        }
         press_enter();
     }
 
@@ -145,8 +145,6 @@ public class committee extends user_extension {
                 default:
                     break;
             }
-            press_enter();
-
         }
         server_connector.OutToServer().writeBytes("new building" + "\n");
         System.out.println("Enter apartment count: ");
@@ -155,18 +153,34 @@ public class committee extends user_extension {
         if (server_connector.InFromServer().readLine().equals("ok")){
             System.out.println("SUCCESS");
         }else System.out.println("something went wrong");
-
+        press_enter();
     }
 
     private void update_paying_status() throws IOException {
         Scanner scan = new Scanner(System.in);
-        System.out.println("Please enter apartment number to update payment and payment. format APTNUM MONEY MONTH:");
-        String str = scan.nextLine();
+        System.out.println("Please enter apartment number");
+        String aptnum = scan.nextLine();
+        System.out.println("How much money have paid?");
+        String money = scan.nextLine();
+        Boolean bool = true;
+        String month = null;
+        while (bool) {
+            System.out.println("for which month? 1-12");
+            month = String.valueOf(Integer.parseInt(scan.nextLine()));
+            if (Integer.parseInt(month) > 0 && Integer.parseInt(month) < 13)
+                bool = false;
+            else System.out.println("wrong input");
+        }
+        String str = aptnum + " " + money + " " + month;
+
         server_connector.OutToServer().writeBytes("update payment" + "\n");
         server_connector.OutToServer().writeBytes(str + "\n");
-        if (server_connector.InFromServer().readLine().toLowerCase().equals("ok"))
-            System.out.println("Payment for resident #" + Arrays.toString(str.split(" ")) + " has been updated");
-        else System.out.println("No such resident or wrong money count, going to menu");
+
+        String serverMsg = server_connector.InFromServer().readLine();
+        while (!serverMsg.equals("end")) {
+            System.out.println(serverMsg);
+            serverMsg = server_connector.InFromServer().readLine();
+        }
         press_enter();
     }
 
@@ -179,6 +193,7 @@ public class committee extends user_extension {
         if (server_connector.InFromServer().readLine().toLowerCase().equals("ok"))
             System.out.println("Payment for resident #" + apt_num + " has been deleted");
         else System.out.println("No such resident or no payment , going to menu");
+        press_enter();
     }
 
     private void display_income() throws IOException {
@@ -253,9 +268,4 @@ public class committee extends user_extension {
         }
     }
 
-    /* function that will pop a message PRESS ENTER TO CONTINUE */
-    private void press_enter() throws IOException {
-        System.out.println("Press enter to continue");
-        System.in.read();
-    }
 }
